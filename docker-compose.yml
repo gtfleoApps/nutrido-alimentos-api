@@ -1,0 +1,51 @@
+version: '3'
+
+services:
+  nutrido-alimento-api:
+    image: quarkus/nutrido-alimentos-api-jvm:latest
+    build:
+      context: ./
+      dockerfile: src/main/docker/Dockerfile.${QUARKUS_MODE:-jvm}
+    environment:
+      QUARKUS_DATASOURCE_URL: vertx-reactive:mysql://localhost:3306/nutrido_alimento_db?autoReconnect=true
+    networks:
+      - nutrido-network
+    ports:
+      - 8080:8080
+    depends_on:
+      - nutrido-alimento-db
+
+  # Configuções para o MySQL
+  # image: nutrido-alimento-db
+  mysql-nutrido-alimento:
+    build:
+      context: ./db/
+      dockerfile: Dockerfile.db
+    container_name: mysql-nutrido-alimento
+    environment:
+      - MYSQL_DATA_BASE=nutrido_alimento_db
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_PASSWORD=root
+      # - MYSQL_USER=root
+    volumes:
+      - mysql.nutrido-alimento:/var/lib/mysql
+    ports:
+      - 3306:3306
+    hostname: nutrido-alimento-network
+    networks:
+      - nutrido-network
+  # Client Web para acessar o MYSQL
+  adminer:
+    image: adminer
+    container_name: db-adminer
+    ports:
+      - 8085:8080
+    networks:
+      - nutrido-network
+
+networks:
+  nutrido-network:
+    driver: bridge
+
+volumes:
+  mysql.nutrido-alimento:
