@@ -25,7 +25,7 @@ import io.smallrye.mutiny.Uni;
 @ApplicationScoped
 @Produces("application/json")
 @Consumes("application/json")
-public class GrupoAlimentoResources {
+public class GrupoAlimentoResource {
 
     @Inject
     GrupoAlimentoRepository grupoAlimentoRepository;
