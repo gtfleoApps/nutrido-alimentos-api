@@ -1,5 +1,9 @@
 package br.com.nutrido.model;
 
+import java.time.Duration;
+import java.util.Collections;
+import java.util.List;
+
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -12,8 +16,15 @@ import javax.persistence.ManyToOne;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 
+import io.quarkus.hibernate.reactive.panache.Panache;
+import io.quarkus.hibernate.reactive.panache.PanacheEntityBase;
+import io.quarkus.panache.common.Sort;
+import io.smallrye.common.constraint.NotNull;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
+
 @Entity(name = "alimento")
-public class Alimento {
+public class Alimento extends PanacheEntityBase {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -34,21 +45,14 @@ public class Alimento {
 
     private Double quantidade;
 
-    /*
-     * If you look at it carefully, you will find that if the relationship ends with
-     * Many keyword i.e. OneToMany , ManyToMany , it is Lazy. If it ends with One
-     * i.e. ManyToOne , OneToOne , it is Eager.
-     */
-    // private Long unidadeMedidaId;
-    @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @NotNull
     @JoinColumn(name = "unidade_medida_id")
-    @JsonBackReference
     private UnidadeMedida unidadeMedida;
 
-    // private Long grupoAlimentoId;
-    @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @NotNull
     @JoinColumn(name = "grupo_alimento_id")
-    @JsonBackReference
     private GrupoAlimento grupoAlimento;
 
     public Long getId() {
@@ -122,9 +126,6 @@ public class Alimento {
     public void setUnidadeMedida(UnidadeMedida unidadeMedida) {
         this.unidadeMedida = unidadeMedida;
     }
-    // public void setUnidadeMedida(Long unidadeMedidaId) {
-    // this.unidadeMedida.setId(unidadeMedidaId);
-    // }
 
     public GrupoAlimento getGrupoAlimento() {
         return grupoAlimento;
@@ -133,9 +134,58 @@ public class Alimento {
     public void setGrupoAlimento(GrupoAlimento grupoAlimento) {
         this.grupoAlimento = grupoAlimento;
     }
-    // public void setGrupoAlimento(Long grupoAlimentoId) {
-    // this.grupoAlimento.setId(grupoAlimentoId);
-    // }
+
+    public static Uni<Alimento> findByAlimentoId(Long id) {
+        return findById(id);
+    }
+
+    public static Uni<Alimento> updateAlimento(Long id, Alimento alimento) {
+        return Panache
+                .withTransaction(() -> findByAlimentoId(id)
+                        .onItem().ifNotNull()
+                        .transform(entity -> {
+                            entity.setNome(alimento.getNome());
+                            entity.setKcal(alimento.getKcal());
+                            entity.setProteina(alimento.getProteina());
+                            entity.setLipidio(alimento.getLipidio());
+                            entity.setCarboidrato(alimento.getCarboidrato());
+                            entity.setFibra(alimento.getFibra());
+                            entity.setQuantidade(alimento.getQuantidade());
+                            entity.setUnidadeMedida(alimento.getUnidadeMedida());
+                            entity.setGrupoAlimento(alimento.getGrupoAlimento());
+                            return entity;
+                        })
+                        .onFailure().recoverWithNull());
+    }
+
+    public static Uni<Alimento> addAlimento(Alimento alimento) {
+        return Panache
+                .withTransaction(alimento::persist)
+                .replaceWith(alimento)
+                .ifNoItem()
+                .after(Duration.ofMillis(10000))
+                .fail()
+                .onFailure()
+                .transform(t -> new IllegalStateException(t));
+    }
+
+    public static Uni<List<PanacheEntityBase>> getAllAlimentos() {
+        return Alimento
+                .listAll(Sort.by("nome"))
+                .ifNoItem()
+                .after(Duration.ofMillis(10000))
+                .fail()
+                .onFailure()
+                .recoverWithUni(Uni.createFrom().<List<PanacheEntityBase>>item(Collections.EMPTY_LIST));
+    }
+
+    public static Uni<Boolean> deleteAlimento(Long id) {
+        return Panache.withTransaction(() -> deleteById(id));
+    }
+
+    public static Multi<Alimento> findByGrupoAlimentoId(Long grupoId) {
+        return stream("grupoAlimento.id = ?1", grupoId);
+    }
 
     @Override
     public String toString() {
